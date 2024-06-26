@@ -74,7 +74,7 @@ m_useCaller(use_caller), m_name(name)
 }
 
 // 初始化调度线程池
-	// 如果只使⽤caller线程进⾏调度，那这个⽅法啥也不做 
+	// 如果caller线程只进⾏调度，caller启动完工作线程后，发布任务，然后使用tickle()或stop()启动所有工作线程执行任务
 void Scheduler::start()
 {
 	std::cout << "Scheduler start() starts" << std::endl;
@@ -150,7 +150,6 @@ void Scheduler::run()
 
 		}
 
-
 		// 4 执行任务
 		// 任务为协程任务
 		if(task.fiber)
@@ -215,7 +214,7 @@ void Scheduler::stop()
 	// 所有线程开始工作
 	tickle();
 
-	// 不再添加新任务 -> 当任务为0时不在进行idle
+	// 不再添加新任务 -> 当任务为0时工作线程不在进行idle而是退出
 	m_stopping = true;
 
 	// 调度器所在线程开始处理任务
@@ -258,6 +257,8 @@ void Scheduler::idle()
 	return;
 }
 
+// 将原文中发布任务的模板函数拆分为两个不同类型的函数
+// 发布线程任务
 void Scheduler::scheduleLock_fiber(std::shared_ptr<Fiber> fc, int thread_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
@@ -269,7 +270,7 @@ void Scheduler::scheduleLock_fiber(std::shared_ptr<Fiber> fc, int thread_id)
 
 	m_tasks.push_back(task);	
 }
-
+// 发布函数任务
 void Scheduler::scheduleLock_cb(std::function<void()> fc, int thread_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
