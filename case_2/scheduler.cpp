@@ -252,7 +252,7 @@ void Scheduler::idle()
 	{
 		std::cout << "sleeping in thread: " << GetThreadId() << std::endl;
 		std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-	}while(tickler==0);
+	}while(tickler==0&&m_stopping==false);
 	tickler --;
 	return;
 }
