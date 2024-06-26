@@ -30,16 +30,9 @@ public:
 	// 添加调度任务
 		//  FiberOrCb 调度任务类型，可以是协程对象或函数指针
 		//  thread 指定运⾏该任务的线程，-1表示任意线程
-	
-	enum Task_type
-	{
-		FUNCTION,
-		FIBER
-	};
 
 	// 投递函数类型的任务
 	void scheduleLock_cb(std::function<void()> fc, int thread_id = -1);
-
 	// 投递协程类型的任务
 	void scheduleLock_fiber(std::shared_ptr<Fiber> fc, int thread_id = -1);
 
@@ -48,12 +41,15 @@ public:
 	// 停止调度器 -> 所有调度任务都执行完了之后返回
 	void stop();
 	
+	// 获取当前的线程号
 	static int GetThreadId();
+	// 新线程创建时设置线程号全局变量
 	static void SetThreadId(int thread_id);
 
-protected:
-	// 有新任务 -> 通知调度协程
+	// 有新任务 -> 通知调度协程开始执行
 	virtual void tickle();
+
+protected:
 	// 调度协程入口函数函数
 	void run();
 	// 无任务调度时执行idle协程
@@ -137,24 +133,8 @@ private:
 
 	// 是否正在停止
 	bool m_stopping = false;
-
+	// 记录当前未完成的任务数量
 	std::atomic<int> tickler;
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #endif
