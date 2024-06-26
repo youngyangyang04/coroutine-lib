@@ -205,7 +205,17 @@ void Fiber::yield()
 {
 	// 协程运⾏完之后会⾃动yield⼀次，⽤于回到主协程，此时状态已为TERM
 	assert(m_state==RUNNING || m_state==TERM);
-	SetThis(t_thread_fiber.get());
+
+	// 将返回到调度协程或者主协程
+	if(m_runInScheduler)
+	{
+		SetThis(Scheduler::GetSchedulerFiber());
+	}
+	else
+	{
+		SetThis(t_thread_fiber.get());
+	}
+
 	if(m_state!=TERM)
 	{
 		m_state = READY;
