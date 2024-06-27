@@ -49,7 +49,7 @@ int swapcontext(ucontext_t *oucp, const ucontext_t *ucp);
 // 当前线程的正在运行的协程
 static thread_local Fiber* t_fiber = nullptr;
 
-// 当前线程的主协程
+// 当前线程的主协程 -> 必须用shared_ptr持有 不然在默认构造函数中创建完会消失
 static thread_local std::shared_ptr<Fiber> t_thread_fiber = nullptr;
 
 // 当前线程的协程数量 
@@ -74,14 +74,13 @@ std::shared_ptr<Fiber> Fiber::GetThis()
 	// 如果当前线程还未创建协程，则创建线程的主协程
 		// Fiber()是私有，不能使用make_shared() -> std::shared_ptr<Fiber> main_fiber = std::make_shared<Fiber>();
 	std::shared_ptr<Fiber> main_fiber(new Fiber());
+	// 设置指向主协程的智能指针 -> 必须用t_thread_fiber持有 不然在默认构造函数中创建完会消失
+	t_thread_fiber = main_fiber;
 
 	// 确认创建主协程的默认构造函数成功运行
 		// .get() -> 智能指针对象获取原始指针
 	assert(t_fiber == main_fiber.get());
-	
-	// 设置指向主协程的智能指针
-	t_thread_fiber = main_fiber;
-	
+
 	return t_fiber->shared_from_this();
 }
 
@@ -114,8 +113,6 @@ m_cb(cb), m_runInScheduler(run_in_scheduler)
 	m_state = READY;
 
 	// 子协程分配栈空间
-	//m_stacksize = stacksize ? stacksize : g_fiber_stack_size->getValue();
-	//m_stack = StackAllocator::Alloc(m_stacksize);
 	m_stacksize = stacksize ? stacksize : 128000;
 	m_stack = malloc(m_stacksize);
 
@@ -206,16 +203,6 @@ void Fiber::yield()
 	// 协程运⾏完之后会⾃动yield⼀次，⽤于回到主协程，此时状态已为TERM
 	assert(m_state==RUNNING || m_state==TERM);
 
-	// 将返回到调度协程或者主协程
-	if(m_runInScheduler)
-	{
-		SetThis(Scheduler::GetSchedulerFiber());
-	}
-	else
-	{
-		SetThis(t_thread_fiber.get());
-	}
-
 	if(m_state!=TERM)
 	{
 		m_state = READY;
@@ -224,7 +211,7 @@ void Fiber::yield()
 	// true -> 子协程切换到调度协程
 	if(m_runInScheduler)
 	{
-
+		SetThis(Scheduler::GetSchedulerFiber());
 		if(swapcontext(&m_ctx, &(Scheduler::GetSchedulerFiber()->m_ctx)))
 		{
 			std::cerr << "yield() to to GetSchedulerFiber failed\n";
@@ -234,6 +221,7 @@ void Fiber::yield()
 	// false -> 调度协程切换到主协程
 	else
 	{
+		SetThis(t_thread_fiber.get());
 		if(swapcontext(&m_ctx, &(t_thread_fiber->m_ctx)))
 		{
 			std::cerr << "yield() to t_thread_fiber failed\n";
@@ -264,4 +252,3 @@ void Fiber::MainFunc()
 	// 运行完毕 -> yield
 	raw_ptr->yield(); 
 }
-

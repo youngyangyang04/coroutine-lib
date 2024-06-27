@@ -16,7 +16,7 @@ Scheduler* Scheduler::GetThis()
 	return t_scheduler;
 }
 
-void Scheduler::setThis()
+void Scheduler::SetThis()
 {
 	t_scheduler = this;
 }
@@ -45,7 +45,7 @@ m_useCaller(use_caller), m_name(name)
 	tickler = 0;
 
 	// 设置调度器指针
-	t_scheduler = this;
+	SetThis();
 
 	// 调度器所在线程的id
 	m_rootThread = 0;	
@@ -71,6 +71,10 @@ m_useCaller(use_caller), m_name(name)
 
 	// 还需要创建的额外线程
 	m_threadCount = threads;
+}
+
+Scheduler::~Scheduler()
+{
 }
 
 // 初始化调度线程池
@@ -106,7 +110,7 @@ void Scheduler::run()
 {
 	std::cout << "Schedule::run() starts in thread: " << GetThreadId() << std::endl;
 	// 设置当前的协程调度器
-	setThis();
+	SetThis();
 	// 非调度器所在线程需要设置调度协程 此时和case_1情况相同 -> 调度协程就是主协程
 	if(GetThreadId() != m_rootThread)
 	{
@@ -147,7 +151,6 @@ void Scheduler::run()
 				m_activeThreadCount++;
 				break;
 			}		
-
 		}
 
 		// 4 执行任务
@@ -166,7 +169,6 @@ void Scheduler::run()
 			cb_fiber->resume();
 			m_activeThreadCount--;
 			task.reset();	
-			cb_fiber.reset();
 		}
 		// 未取出任务 -> 任务为空 -> 切换到idle协程
 		else
@@ -202,7 +204,7 @@ main函数与调度协程完全不相关，main函数只需要向调度器添加
 
 void Scheduler::stop()
 {
-	std::cout << "Schedule::stop() starts" << std::endl;
+	std::cout << "Schedule::stop() starts in thread: " << GetThreadId() << std::endl;
 	if(stopping())
 	{
 		return;
@@ -222,7 +224,7 @@ void Scheduler::stop()
 	if(m_rootFiber)
 	{
 		m_rootFiber->resume();
-		std::cout << "m_rootFiber ends" << std::endl;
+		std::cout << "m_rootFiber ends in thread:" << GetThreadId() << std::endl;
 	}
 
 	std::vector<std::shared_ptr<Thread>> thrs;
@@ -236,7 +238,7 @@ void Scheduler::stop()
 	{
 		i->join();
 	}
-	std::cout << "Schedule::stop() ends" << std::endl;
+	std::cout << "Schedule::stop() ends in thread:" << GetThreadId() << std::endl;
 }
 
 void Scheduler::tickle()
@@ -257,9 +259,8 @@ void Scheduler::idle()
 	return;
 }
 
-// 将原文中发布任务的模板函数拆分为两个不同类型的函数
 // 发布线程任务
-void Scheduler::scheduleLock_fiber(std::shared_ptr<Fiber> fc, int thread_id)
+void Scheduler::scheduleLock(std::shared_ptr<Fiber> fc, int thread_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	ScheduleTask task;
@@ -270,8 +271,9 @@ void Scheduler::scheduleLock_fiber(std::shared_ptr<Fiber> fc, int thread_id)
 
 	m_tasks.push_back(task);	
 }
+
 // 发布函数任务
-void Scheduler::scheduleLock_cb(std::function<void()> fc, int thread_id)
+void Scheduler::scheduleLock(std::function<void()> fc, int thread_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	ScheduleTask task;

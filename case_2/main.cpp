@@ -20,10 +20,11 @@ int main(int argc, char const *argv[])
 
 		sleep(5);
 
+		std::cout << "begin post\n"; 
 		for(int i=0;i<20;i++)
 		{
 			std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(task);
-			scheduler->scheduleLock_fiber(fiber);
+			scheduler->scheduleLock(fiber);
 		}
 		// 所有工作线程开始运行
 		scheduler->stop();

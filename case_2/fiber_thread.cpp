@@ -14,7 +14,8 @@ m_name(name)
 // 析构函数
 Thread::~Thread()
 {
-    if (m_thread.joinable()) {
+    if (m_thread.joinable()) 
+    {
         m_thread.join();
     }
 }

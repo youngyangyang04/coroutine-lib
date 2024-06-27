@@ -10,18 +10,13 @@
 #include "scheduler.h"
 #include <unistd.h>
 
-
-
 class Scheduler;
-
 
 	// 公有继承 -> 继承自这个类的对象可以安全地生成一个指向自身的std::shared_ptr 
 	// 通过shared_from_this()方法获取指向调用对象的的shared_ptr <-> 对比this指针 
 class Fiber : public std::enable_shared_from_this<Fiber>
 {
 public:
-	typedef std::shared_ptr<Fiber> ptr;
-
 	// 协程共三种状态
 	// READY <-> RUNNING -> TERM
 	enum State
@@ -108,12 +103,5 @@ private:
 	bool m_runInScheduler;
 };
 
-
-
 #endif
 
-/*
-
-
-
-*/
