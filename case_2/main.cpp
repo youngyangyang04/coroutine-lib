@@ -1,11 +1,13 @@
 #include "scheduler.h"
 
 static unsigned int test_number;
-
+std::mutex mutex_cout;
 void task()
 {
-	std::cout << "task " << test_number << " is under processing in thread: " << Scheduler::GetThreadId() << std::endl;
-	test_number ++;
+	{
+		std::lock_guard<std::mutex> lock(mutex_cout);
+		std::cout << "task " << test_number ++ << " is under processing in thread: " << Scheduler::GetThreadId() << std::endl;		
+	}
 	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 }
 
@@ -18,15 +20,17 @@ int main(int argc, char const *argv[])
 		
 		scheduler->start();
 
-		sleep(5);
+		sleep(8);
 
 		std::cout << "begin post\n"; 
-		for(int i=0;i<20;i++)
+		for(int i=0;i<50;i++)
 		{
 			std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(task);
 			scheduler->scheduleLock(fiber);
 		}
-		// 所有工作线程开始运行
+
+		sleep(4);
+		// scheduler如果有设置将加入工作处理
 		scheduler->stop();
 	}
 	return 0;

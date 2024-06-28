@@ -119,10 +119,14 @@ void Scheduler::run()
 		t_scheduler_fiber = Fiber::GetThis().get();
 	}
 
+	std::shared_ptr<Fiber> idle_fiber = std::make_shared<Fiber>(std::bind(&Scheduler::idle, this));
+	std::shared_ptr<Fiber> cb_fiber;
+
 	ScheduleTask task;
 	while(true)
 	{
 		task.reset();
+		bool tickle_me = false;
 		// mutex范围
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
@@ -150,7 +154,13 @@ void Scheduler::run()
 				tickler --; // 剩余任务数-1
 				m_activeThreadCount++;
 				break;
-			}		
+			}	
+			tickle_me = tickle_me || (it != m_tasks.end());
+		}
+
+		if(tickle_me)
+		{
+			tickle();
 		}
 
 		// 4 执行任务
@@ -164,8 +174,14 @@ void Scheduler::run()
 		// 任务为函数任务
 		else if(task.cb)
 		{
-			// 使用任务协程绑定这个函数
-			std::shared_ptr<Fiber> cb_fiber = std::make_shared<Fiber>(task.cb);
+			if(cb_fiber)
+			{
+				cb_fiber->reset(task.cb);
+			}
+			else
+			{
+				cb_fiber.reset(new Fiber(task.cb));
+			}
 			cb_fiber->resume();
 			m_activeThreadCount--;
 			task.reset();	
@@ -178,11 +194,11 @@ void Scheduler::run()
 			{
 				break;
 			}
-			// 创建idle协程
-			std::shared_ptr<Fiber> idle_fiber = std::make_shared<Fiber>(std::bind(&Scheduler::idle, this));
-			// 运行idle函数
+			// 运行idle协程
 			m_idleThreadCount++;
 			idle_fiber->resume();
+			// 重置idle协程的状态
+			idle_fiber->setState(Fiber::READY);
 			m_idleThreadCount--;
 		}
 	}
@@ -210,11 +226,19 @@ void Scheduler::stop()
 		return;
 	}
 	
-	// 和原文修改，只能由调度器所在线程线程发起stop
+	// 对原文修改，只能由调度器所在线程线程发起stop
 	assert(GetThreadId()==m_rootThread);
 
 	// 所有线程开始工作
-	tickle();
+	for (size_t i = 0; i < m_threadCount; i++) 
+	{
+		tickle();
+	}
+
+	if (m_rootFiber) 
+	{
+		tickle();
+	}
 
 	// 不再添加新任务 -> 当任务为0时工作线程不在进行idle而是退出
 	m_stopping = true;
