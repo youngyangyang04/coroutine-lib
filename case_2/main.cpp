@@ -23,11 +23,19 @@ int main(int argc, char const *argv[])
 		sleep(8);
 
 		std::cout << "begin post\n"; 
-		for(int i=0;i<50;i++)
+		for(int i=0;i<6;i++)
 		{
 			std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(task);
 			scheduler->scheduleLock(fiber);
 		}
+
+		sleep(8);
+
+		for(int i=0;i<20;i++)
+		{
+			std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(task);
+			scheduler->scheduleLock(fiber);
+		}		
 
 		sleep(4);
 		// scheduler如果有设置将加入工作处理
