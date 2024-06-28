@@ -197,8 +197,6 @@ void Scheduler::run()
 			// 运行idle协程
 			m_idleThreadCount++;
 			idle_fiber->resume();
-			// 重置idle协程的状态
-			idle_fiber->setState(Fiber::READY);
 			m_idleThreadCount--;
 		}
 	}
@@ -272,15 +270,23 @@ void Scheduler::tickle()
 }
 
 // 当任务数为0时一直在睡眠 -> tickle之后修改任务数 -> 工作线程开始工作
+// idle函数永远不会结束 但是会yield 此时idle协程状态会被重置为READY
+// 重新resume之后会从yield的下一行 也就是while循环的头部重新开始
 void Scheduler::idle()
 {
-	do
+	while(true)
 	{
-		std::cout << "sleeping in thread: " << GetThreadId() << std::endl;
-		std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-	}while(tickler==0&&m_stopping==false);
-	tickler --;
-	return;
+		std::cout << " resume idle(), sleeping in thread: " << GetThreadId() << std::endl;
+		while(tickler==0&&m_stopping==false)
+		{	
+			std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+		}
+
+		std::shared_ptr<Fiber> curr = Fiber::GetThis();
+		auto raw_ptr = curr.get();
+		curr.reset(); 
+		raw_ptr->yield(); 
+	}
 }
 
 // 发布线程任务
