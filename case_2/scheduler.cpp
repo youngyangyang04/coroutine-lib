@@ -163,7 +163,7 @@ void Scheduler::run()
 			tickle();
 		}
 
-		// 4 执行任务
+		// 3 执行任务
 		// 任务为协程任务
 		if(task.fiber)
 		{
@@ -186,7 +186,7 @@ void Scheduler::run()
 			m_activeThreadCount--;
 			task.reset();	
 		}
-		// 未取出任务 -> 任务为空 -> 切换到idle协程
+		// 4 未取出任务 -> 任务为空 -> 切换到idle协程
 		else
 		{		
 			// 调度器已经关闭
