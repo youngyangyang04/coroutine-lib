@@ -262,26 +262,32 @@ void Scheduler::idle()
 // 发布线程任务
 void Scheduler::scheduleLock(std::shared_ptr<Fiber> fc, int thread_id)
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	ScheduleTask task;
-	
-	task.fiber = fc;
-	task.cb = nullptr;
-	task.thread = thread_id;
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		ScheduleTask task;
+		
+		task.fiber = fc;
+		task.cb = nullptr;
+		task.thread = thread_id;
 
-	m_tasks.push_back(task);	
+		m_tasks.push_back(task);			
+	}
+	tickle();
 }
 
 // 发布函数任务
 void Scheduler::scheduleLock(std::function<void()> fc, int thread_id)
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	ScheduleTask task;
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		ScheduleTask task;
 
-	task.fiber = nullptr;
-	task.cb = fc;
-	task.thread = thread_id;	
+		task.fiber = nullptr;
+		task.cb = fc;
+		task.thread = thread_id;	
 
-	m_tasks.push_back(task);	
+		m_tasks.push_back(task);		
+	}
+	tickle();
 }
 
