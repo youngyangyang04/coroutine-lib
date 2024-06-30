@@ -132,7 +132,7 @@ private:
 
 	// 是否正在停止
 	bool m_stopping = false;
-	// 记录当前未完成的任务数量
+	// 用于唤醒在idle协程中的线程
 	std::atomic<int> tickler;
 };
 

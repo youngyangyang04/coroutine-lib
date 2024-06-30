@@ -13,7 +13,7 @@ void task()
 
 int main(int argc, char const *argv[])
 {
-	std::cout << "begin test\n";
+	std::cout << "scheduleer begins to test\n";
 	{
 		// 可以尝试把false 变为true 此时调度器所在线程也将加入工作线程
 		std::shared_ptr<Scheduler> scheduler = std::make_shared<Scheduler>(3, true, "scheduler_1");
@@ -23,7 +23,7 @@ int main(int argc, char const *argv[])
 		sleep(8);
 
 		std::cout << "begin post\n"; 
-		for(int i=0;i<6;i++)
+		for(int i=0;i<5;i++)
 		{
 			std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(task);
 			scheduler->scheduleLock(fiber);

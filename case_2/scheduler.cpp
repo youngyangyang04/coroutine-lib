@@ -265,12 +265,10 @@ void Scheduler::stop()
 
 void Scheduler::tickle()
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
-	tickler = m_tasks.size();
+	tickler ++;
 }
 
 // 当任务数为0时一直在睡眠 -> tickle之后修改任务数 -> 工作线程开始工作
-// idle函数永远不会结束 但是会yield 此时idle协程状态会被重置为READY
 // 重新resume之后会从yield的下一行 也就是while循环的头部重新开始
 void Scheduler::idle()
 {
@@ -282,6 +280,7 @@ void Scheduler::idle()
 			std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 		}
 
+		tickler --;
 		std::shared_ptr<Fiber> curr = Fiber::GetThis();
 		auto raw_ptr = curr.get();
 		curr.reset(); 
