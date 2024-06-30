@@ -151,7 +151,6 @@ void Scheduler::run()
 				// 2 取出任务
 				task = *it;
 				m_tasks.erase(it); 
-				tickler --; // 剩余任务数-1
 				m_activeThreadCount++;
 				break;
 			}	
