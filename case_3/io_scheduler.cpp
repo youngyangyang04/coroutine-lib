@@ -26,7 +26,7 @@ static int debug = 1;
 		};
 		*/
 
-// 构造函数
+// 构造函数 -> 初始化管道和epollfd
 IOManager::IOManager(size_t threads, bool use_caller, const std::string &name):
 Scheduler(threads, use_caller, name)
 {
@@ -38,16 +38,16 @@ Scheduler(threads, use_caller, name)
 	int rt = pipe(m_tickleFds);
 	assert(!rt);
 
-	// 1 m_tickleFds[0]读事件(EPOLLET边沿触发)
+	// 注册pipe读端的读事件(EPOLLET边沿触发)
 	epoll_event event;
 	event.events = EPOLLIN | EPOLLET;
 	event.data.fd = m_tickleFds[0];
 
-	// 2 设置pipe读端fd为非阻塞，配合边沿触发
+	// 设置为非阻塞，配合epoll
 	rt = fcntl(m_tickleFds[0], F_SETFL, O_NONBLOCK);
 	assert(!rt);
 
-	// 3 将事件加入epoll监听集合 -> 如果管道可读，会从idle()中的epoll_wait()返回
+	// 将事件加入epoll监听集合 -> 如果管道可读，会从idle()中的epoll_wait()返回
 	rt = epoll_ctl(m_epfd, EPOLL_CTL_ADD, m_tickleFds[0], &event);
 	assert(!rt);
 
@@ -90,7 +90,7 @@ void IOManager::startup()
 		exit(1);			
 	}
 	
-	// 1 listen_fd读事件(EPOLLET边沿触发)
+	// 注册listen_fd的读事件(EPOLLET边沿触发)
 	epoll_event event;
 	event.events = EPOLLIN | EPOLLET;
 	event.data.fd = listen_fd;
@@ -145,7 +145,7 @@ void IOManager::idle()
 		std::cout << " IOManager::idle() resume, sleeping in thread: " << GetThreadId() << std::endl;
 
 		// 1 开始监听事件集合, 阻塞在epoll_wait上，等待事件的发生
-		int rt = epoll_wait(m_epfd, events.get(), 256, 100000);
+		int rt = epoll_wait(m_epfd, events.get(), 256, -1);
 		if(rt<0)
 		{
 			// EINTR错误 -> 忽略 -> 重新epoll_wait()
@@ -161,7 +161,6 @@ void IOManager::idle()
 		// 2 遍历所有就绪事件
 		for(int i=0;i<rt;i++)
 		{
-			// 注意event为引用
 				// unique_ptr数组支持[]运算符
 			epoll_event& event = events[i];
 			
@@ -179,7 +178,7 @@ void IOManager::idle()
 			if(event.data.fd==m_listen_fd&&!m_stopping)
 			{
 				if(debug) std:: cout << "!!!!!!!!!!!!!!new fd = " << event.data.fd << std::endl;
-				// 拿到已连接fd
+				// 建立新连接fd
 				struct sockaddr_in client_addr;
 				socklen_t len = sizeof(client_addr);
 				int fd = accept(m_listen_fd, (struct sockaddr *)&client_addr, &len);
@@ -188,8 +187,10 @@ void IOManager::idle()
 				int rt = fcntl(fd, F_SETFL, O_NONBLOCK);
 				assert(!rt);
 
+				// 重置fdcontext  
+					// 当相同新连接使用相同fd时，重置之前fd对应的fdcontext
 				FdContext* fd_ctx = nullptr;
-				// 上读锁 -> 使用c++17 shared_mutex
+					// 上读锁 -> 使用c++17 shared_mutex
 				std::shared_lock<std::shared_mutex> read_lock(m_mutex);
 				// fdcontext存在
 				if((int)m_fdContexts.size()>fd)
@@ -201,6 +202,7 @@ void IOManager::idle()
 				else
 				{
 					read_lock.unlock();
+					// 上写锁
 					std::unique_lock<std::shared_mutex> write_lock(m_mutex);
 					contextResize(fd*1.5);
 					fd_ctx = m_fdContexts[fd];
@@ -211,18 +213,16 @@ void IOManager::idle()
 					std::lock_guard<std::mutex> lock(fd_ctx->mutex);
 					fd_ctx->fd = fd;
 					fd_ctx->events = NONE;
+					// 为新fd重新创建协程，之前的协程被智能指针自动释放
 					fd_ctx->handler.fiber.reset(new Fiber(std::bind(&IOManager::doCommonProcess, this, fd)));
 				}
 				setEvent(fd, READ);
 				continue;
 			}
 
-			// 其他fd上的事件
-			FdContext* fd_ctx = (FdContext*)event.data.ptr;
-
+			// 其他fd上的事件 -> 将该fd的协程加入调度队列 -> 要执⾏的话还要等idle协程退出
+			FdContext* fd_ctx = (FdContext*)event.data.ptr; 
 			if(debug) std:: cout << "!!!!!!!!!!!!!!fd = " << fd_ctx->fd << ", event :" << fd_ctx->events << std::endl; 
-
- 			// 发生的事件 -> 加入调度队列 -> 要执⾏的话还要等idle协程退出
   			scheduleLock(fd_ctx->handler.fiber);		
 		} // end for()
 
@@ -289,7 +289,7 @@ bool IOManager::setEvent(int fd, Event event)
 	// 2 将事件加入监听集合
 	int op = fd_ctx->events ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	epoll_event epevent;
-	epevent.events = EPOLLET | event;
+	epevent.events = EPOLLET | event; // 边沿触发模式
 	epevent.data.ptr = fd_ctx;
 
 	int rt = epoll_ctl(m_epfd, op, fd, &epevent);
@@ -364,11 +364,12 @@ void IOManager::doCommonProcess(int fd)
 	{
 		if(debug) std::cout << "读事件进入 fd = " << fd << ", " << buffer << std::endl;
 
-		// 必须删掉正在监听的读任务 防止在其他线程触发
+		// 一旦进入协程 删掉正在监听的读任务 只在需要时加入监听集合
 		delAllEvent(fd);
 		int ret;
 		int total = 0;
 
+		// 1 读
 		do 
 		{
 		    ret = read(fd, buffer + total, sizeof(buffer) - total);
@@ -387,18 +388,17 @@ void IOManager::doCommonProcess(int fd)
 
 		buffer[total] = '\0';
 
-		// 可加http协议解析
+		// 2 进行http协议解析
 
-		// 再次进入 将由写事件触发
+		// 再次进入时 将由写事件触发
 		setEvent(fd, WRITE);
-
 		std::shared_ptr<Fiber> curr_fiber = Fiber::GetThis();
 		auto raw_ptr = curr_fiber.get();
 		curr_fiber.reset(); 
 		raw_ptr->yield();
 
 		if(debug) std::cout << "写事件进入 fd = " << fd << ", " << buffer << std::endl;
-		// 写
+		// 3 写
 		ret = write(fd, buffer, total);
 	    if (ret == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) 
 	    {
@@ -406,9 +406,8 @@ void IOManager::doCommonProcess(int fd)
 	        return;
 	    }
 
-	    // 写完后 再次更新为读事件
+	    // 再次进入时 将由读事件触发
 	    setEvent(fd, READ);
-
 		std::shared_ptr<Fiber> curr_fiber2 = Fiber::GetThis();
 		auto raw_ptr2 = curr_fiber2.get();
 		curr_fiber2.reset(); 

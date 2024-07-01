@@ -5,11 +5,11 @@ int main(int argc, char const *argv[])
 	{
 		// 启动shcheduler
 		IOManager server(3, true, "scheduler");
-		sleep(3);
+		sleep(2);
 
 		// 启动工作线程
 		server.start();
-		sleep(3);	
+		sleep(2);	
 
 		// 启动服务器
 		server.startup();
