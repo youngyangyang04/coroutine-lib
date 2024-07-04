@@ -119,6 +119,7 @@ void IOManager::contextResize(int size)
 }
 
 // 有任务需要调度时tickle() -> 通过pipe写 -> idle协程从epoll_wait中退出 -> run()可以调度其他任务
+	// 重载父类tickler()方法
 void IOManager::tickle()
 {
 	std::cout << "IOManager::tickle() in thread: " << GetThreadId() << std::endl;
@@ -187,8 +188,7 @@ void IOManager::idle()
 				int rt = fcntl(fd, F_SETFL, O_NONBLOCK);
 				assert(!rt);
 
-				// 重置fdcontext  
-					// 当相同新连接使用相同fd时，重置之前fd对应的fdcontext
+				// 当相同新连接使用相同fd时，会重置之前fd对应的fdcontext
 				FdContext* fd_ctx = nullptr;
 					// 上读锁 -> 使用c++17 shared_mutex
 				std::shared_lock<std::shared_mutex> read_lock(m_mutex);
@@ -211,11 +211,12 @@ void IOManager::idle()
 
 				{
 					std::lock_guard<std::mutex> lock(fd_ctx->mutex);
-					fd_ctx->fd = fd;
-					fd_ctx->events = NONE;
 					// 为新fd重新创建协程，之前的协程被智能指针自动释放
-					fd_ctx->handler.fiber.reset(new Fiber(std::bind(&IOManager::doCommonProcess, this, fd)));
+					std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(std::bind(&IOManager::doCommonProcess, this, fd));
+					// 重置fdcontext
+					fd_ctx->reset(fd, fiber);
 				}
+
 				setEvent(fd, READ);
 				continue;
 			}

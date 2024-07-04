@@ -46,13 +46,21 @@ public:
 		
 		// fd
 		int fd = 0;
-		// 在此注册fd的关心的事件
-			// 事件是用位掩码来记录的，不同位代表不同的事件，用一个Event变量记录即可
+		// 在此注册fd的关心的事件 -> 事件是用位掩码来记录的，不同位代表不同的事件，用一个Event变量记录即可
 		Event events = NONE;
 		// mutex
 		std::mutex mutex;
 
 		char buffer[256];
+
+		void reset(int fd, const std::shared_ptr<Fiber> &fiber)
+		{
+		    this->fd = fd;
+		    this->events = NONE;
+		    this->handler.scheduler = nullptr;
+		    this->handler.fiber = fiber;
+		    this->handler.cb = nullptr;
+		}
 	};
 
 private:
