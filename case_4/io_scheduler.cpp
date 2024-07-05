@@ -1,4 +1,5 @@
 #include "io_scheduler.h"
+#include <algorithm>
 
 // 不需要可以关闭部分debug信息
 static int debug = 1;
@@ -145,8 +146,16 @@ void IOManager::idle()
 	{
 		std::cout << " IOManager::idle() resume, sleeping in thread: " << GetThreadId() << std::endl;
 
-		// 1 开始监听事件集合, 阻塞在epoll_wait上，等待事件的发生
-		int rt = epoll_wait(m_epfd, events.get(), 256, -1);
+		// 1 开始监听事件集合, 阻塞在epoll_wait上，等待事件的发生或计时器到期
+		uint64_t wait_time = getNextTime();
+		if(wait_time==0)
+		{	// 如果没有计时器
+			wait_time = (uint64_t)5000;
+		}
+
+		wait_time = std::min((uint64_t)5000, wait_time);
+
+		int rt = epoll_wait(m_epfd, events.get(), 256, wait_time);
 		if(rt<0)
 		{
 			// EINTR错误 -> 忽略 -> 重新epoll_wait()
@@ -157,6 +166,21 @@ void IOManager::idle()
 			// 其他错误
 			std::cerr << "epoll_wait on " << m_epfd << " failed, errno: " << errno << std::endl;
 			break;
+		}
+
+		// 如果系统时间被修改
+		if(detectClockRollover())
+		{
+			// 修改现在所有计时器的时间
+			refreshAllTimer();
+		}
+
+		// 将所有超时计时器的handler函数加入任务队列
+		std::vector<std::function<void()>> cbs;
+		listExpiredCb(cbs);
+		for(auto cb : cbs)
+		{
+			scheduleLock(cb);	
 		}
 
 		// 2 遍历所有就绪事件
@@ -215,6 +239,8 @@ void IOManager::idle()
 					std::shared_ptr<Fiber> fiber = std::make_shared<Fiber>(std::bind(&IOManager::doCommonProcess, this, fd));
 					// 重置fdcontext
 					fd_ctx->reset(fd, fiber);
+					// 为该fd加入一个计时器 如果长时间为响应将自动关闭
+					fd_ctx->m_timer = addTimer(5000, std::bind(&IOManager::closefd, this, fd), false);
 				}
 
 				setEvent(fd, READ);
@@ -358,11 +384,13 @@ bool IOManager::delAllEvent(int fd)
 void IOManager::doCommonProcess(int fd)
 {	
 	std::shared_lock<std::shared_mutex> read_lock(m_mutex);
-	char* buffer = m_fdContexts[fd]->buffer;
+	FdContext* fd_ctx = m_fdContexts[fd];
+	char* buffer = fd_ctx->buffer;
 	read_lock.unlock();
 	
-	while(true)
+	while(true) // 该范围无锁
 	{
+
 		if(debug) std::cout << "读事件进入 fd = " << fd << ", " << buffer << std::endl;
 
 		// 一旦进入协程 删掉正在监听的读任务 只在需要时加入监听集合
@@ -383,11 +411,19 @@ void IOManager::doCommonProcess(int fd)
 		// 需要关闭链接的情况
 	    if (ret == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) 
 	    {
-	        close(fd);
+	        closefd(fd);
 	        return;
 	    }
 
 		buffer[total] = '\0';
+
+		// 收到信息 -> 将之前的timer去掉 加入新的timer
+		auto sp = fd_ctx->m_timer.lock(); // 尝试获取一个 shared_ptr
+		if (sp) 
+		{
+		    sp->cancel(); // 如果成功获取到 shared_ptr，则调用 cancel()
+		} 
+		fd_ctx->m_timer = addTimer(5000, std::bind(&IOManager::closefd, this, fd), false);
 
 		// 2 进行http协议解析
 
@@ -403,7 +439,7 @@ void IOManager::doCommonProcess(int fd)
 		ret = write(fd, buffer, total);
 	    if (ret == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) 
 	    {
-	        close(fd);
+	        closefd(fd);
 	        return;
 	    }
 
@@ -416,3 +452,23 @@ void IOManager::doCommonProcess(int fd)
 	} // end while(true)
 }
 
+void IOManager::onTiemrInsertedAtFront()
+{
+	tickle();
+}
+
+// 删除监听事件并关闭fd
+void IOManager::closefd(int fd)
+{
+	if(fd)
+	{
+		epoll_event epevent;
+		epevent.events = 0;
+		int rt = epoll_ctl(m_epfd, EPOLL_CTL_DEL, fd, &epevent);
+		if(rt)
+		{
+			std::cerr << "delAllEvent epoll_ctl() failed, fd = " << fd << ", on epollfd = " << m_epfd << ": " << strerror(errno) << std::endl;
+		}
+		close(fd);		
+	}
+}

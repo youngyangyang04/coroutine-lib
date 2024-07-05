@@ -26,7 +26,6 @@ sylar定时器的超时等待基于epoll_wait，精度只⽀持毫秒级，因�
 由于epoll_wait的返回并不⼀定是超时引起的，也有可能是IO事件唤醒的，所以在epoll_wait返回后不能想当然地
 假设定时器已经超时了，⽽是要再判断⼀下定时器有没有超时，这时绝对时间的好处就体现出来了，通过⽐较当前
 的绝对时间和定时器的绝对超时时间，就可以确定⼀个定时器到底有没有超时。
-
 */
 
 class TimerManager;
@@ -73,11 +72,13 @@ private:
 	bool m_canceled = false;
 	// 条件对象
     std::weak_ptr<void> m_weak_cond;
-    // 创建一个永久存在的对象 给那些不需要额外检查对象是否存在的Timer
+
+    // 该指针指向一个永久存在的对象 给那些不需要额外检查对象是否存在的Timer
     static std::shared_ptr<int> s_default_object;
 
 private:
 	// 仿函数 -> ⽤于⽐较两个Timer对象，⽐较的依据是绝对超时时间
+		// 最小堆的比较函数
 	struct Comparator
 	{
 		bool operator() (const std::shared_ptr<Timer>& lhs, const std::shared_ptr<Timer>& rhs) const
@@ -136,7 +137,7 @@ protected:
 	void addTimer(std::shared_ptr<Timer> val);
 
 	// 检测服务器时间是否被调后了
-	bool detectClockRollover(uint64_t now_ms);
+	bool detectClockRollover();
 
 private:
 	// mutex
@@ -147,6 +148,9 @@ private:
 	bool m_tickled = false;
 	// 上次执行时间
 	std::chrono::time_point<std::chrono::system_clock> m_previousTime;
+
+public:
+	void refreshAllTimer();
 };
 
 
@@ -154,23 +158,18 @@ private:
 
 1. 创建定时器时只传入了相对超时时间，内部要先进行转换，根据当前时间把相对时间转化成绝对时间。
 
-2. sylar支持创建条件定时器，也就是在创建定时器时绑定一个变量，在定时器触发时判断一下该变量是否仍然有效，如果变量无效，那就取消触发。
+2. sylar支持创建条件定时器，也就是在创建定时器时绑定一个变量，在定时器触发时判断一下该变量是否存在如果变量已被释放，那就取消触发。
 
 3. 关于onTimerInsertedAtFront()方法的作用。这个方法是IOManager提供给TimerManager使用的，
 当TimerManager检测到新添加的定时器的超时时间比当前最小的定时器还要小时，
 TimerManager通过这个方法来通知IOManager立刻更新当前的epoll_wait超时，
 否则新添加的定时器的执行时间将不准确。
 实际实现时，只需要在onTimerInsertedAtFront()方法内执行一次tickle就行了，
-tickle之后，epoll_wait会立即退出，
-并重新从TimerManager中获取最近的超时时间，这时拿到的超时时间就是新添加的最小定时器的超时时间了。
+tickle之后，epoll_wait会立即退出，并重新从TimerManager中获取最近的超时时间，
+这时拿到的超时时间就是新添加的最小定时器的超时时间了。
 
-4. 关于校时问题。sylar的定时器以gettimeofday()来获取绝对时间点并判断超时，
-所以依赖于系统时间，如果系统进行了校时，比如NTP时间同步，
-那这套定时机制就失效了。sylar的解决办法是设置一个较小的超时步长，
-比如3秒钟，也就是epoll_wait最多3秒超时，假设最近一个定时器的超时时间是10秒以后，
-那epoll_wait需要超时3次才会触发。每次超时之后除了要检查有没有要触发的定时器，
-还顺便检查一下系统时间有没有被往回调。如果系统时间往回调了1个小时以上，那就触发全部定时器。
+4. 每次超时之后除了要检查有没有要触发的定时器，还顺便检查一下系统时间有没有被往回调。
+如果系统时间往回调了1个小时以上，那就触发全部定时器。
 个人感觉这个办法有些粗糙，其实只需要换个时间源就可以解决校时问题，
 换成clock_gettime(CLOCK_MONOTONIC_RAW)的方式获取系统的单调时间，就可以解决这个问题了
-
 */

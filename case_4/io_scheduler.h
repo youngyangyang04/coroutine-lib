@@ -9,10 +9,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include "timer.h"
 
 class Scheduler;
 
-class IOManager : public Scheduler
+class IOManager : public Scheduler, public TimerManager
 {
 public:
 	// 读写事件的定义
@@ -61,6 +62,8 @@ public:
 		    this->handler.fiber = fiber;
 		    this->handler.cb = nullptr;
 		}
+
+		std::weak_ptr<Timer> m_timer;
 	};
 
 private:
@@ -90,6 +93,10 @@ public:
 	bool delAllEvent(int fd);
 
 	void doCommonProcess(int fd);
+
+public:
+	void onTiemrInsertedAtFront();	
+	void closefd(int fd);
 
 };
 

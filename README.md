@@ -8,3 +8,6 @@ case_2:
 case_3:
 多线程协程模型 在服务器下的应用 一个简单的echo服务器
 io_scheduler继承于之前的scheduler类
+
+case_4 
+ioscheduler在上个基础上继承于计时模块 增加了计时器功能（时间堆实现）
