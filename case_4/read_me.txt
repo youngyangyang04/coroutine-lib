@@ -2,6 +2,9 @@
 该模块可以添加时间任务
 本测试用例的时间任务是 如果客户fd未在5s未发送数据 关闭客户端
 
+waek_ptr 不持有资源
+即不增加share_ptr的引用计数 但可以在需要的时候获得share_ptr（如果资源还未被释放）
+
 compile using
 g++ -std=c++17 *.cpp -o test.a 
 
