@@ -417,14 +417,6 @@ void IOManager::doCommonProcess(int fd)
 
 		buffer[total] = '\0';
 
-		// 收到信息 -> 将之前的timer去掉 加入新的timer
-		auto sp = fd_ctx->m_timer.lock(); // 尝试获取一个 shared_ptr
-		if (sp) 
-		{
-		    sp->cancel(); // 如果成功获取到 shared_ptr，则调用 cancel()
-		} 
-		fd_ctx->m_timer = addTimer(5000, std::bind(&IOManager::closefd, this, fd), false);
-
 		// 2 进行http协议解析
 
 		// 再次进入时 将由写事件触发
@@ -442,6 +434,14 @@ void IOManager::doCommonProcess(int fd)
 	        closefd(fd);
 	        return;
 	    }
+
+		// 更新timer -> 写完后 -> 将之前的timer去掉 加入新的timer
+		auto sp = fd_ctx->m_timer.lock(); // 尝试获取一个 shared_ptr
+		if (sp) 
+		{
+		    sp->cancel(); // 如果成功获取到 shared_ptr，则调用 cancel()
+		} 
+		fd_ctx->m_timer = addTimer(5000, std::bind(&IOManager::closefd, this, fd), false);
 
 	    // 再次进入时 将由读事件触发
 	    setEvent(fd, READ);
