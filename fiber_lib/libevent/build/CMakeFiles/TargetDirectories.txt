@@ -1,0 +1,3 @@
+/home/lhs/apache_corlib/libevent/build/CMakeFiles/echo_server.dir
+/home/lhs/apache_corlib/libevent/build/CMakeFiles/edit_cache.dir
+/home/lhs/apache_corlib/libevent/build/CMakeFiles/rebuild_cache.dir
