@@ -1,6 +1,8 @@
 # 项目概述
 
-[【代码随想录知识星球】](https://www.programmercarl.com/other/kstar.html)项目分享-手撕协程库（CPP），[项目专栏介绍](https://www.programmercarl.com/other/project_coroutine.html) 有本项目的详细文档
+> ⭐️ 本项目为[【代码随想录知识星球】](https://programmercarl.com/other/kstar.html) 教学项目   
+> ⭐️ 在 [手写协程库项目文档](https://programmercarl.com/other/project_coroutine.html)  里详细讲解：**项目前置知识 + 项目细节 +  代码解读 + 项目难点 + 面试题与回答 + 简历写法  + 项目拓展**。 全面帮助你用这个项目求职面试！
+
 
 本项目是对sylar服务器框架的改编和简化，专注于协程库的部分。通过引入协程、调度器和定时器等核心模块，利用HOOK技术将Linux系统中的传统同步函数（如 `sleep`、`read`、`write` 等）转化为异步版本。此改造允许保持同步I/O的编程方式，同时享受异步执行的效率和响应速度提升。
 
