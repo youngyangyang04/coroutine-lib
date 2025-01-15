@@ -8,7 +8,7 @@
 
 ## 运行环境
 
-Ubuntu 24.04 LTS
+Ubuntu 20.04 LTS
 
 ## 编译指令
 
@@ -25,6 +25,25 @@ g++ *.cpp -std=c++17 -o main -ldl -lpthread
 执行可执行文件
 ```shell
 ./main
+```
+
+### 测试工具的使用：
+在ubuntu安装
+```shell
+sudo apt update
+sudo apt install apache2-utils
+```
+
+判断是否安装成功
+```shell
+ab -V
+```
+
+### 通过测试工具运行项目:
+**注意别忘记启动main可执行程序，并且额外开一个窗口执行以下内容**
+测试工具apache的命令使用的是:
+```shell
+ab -n 100000 -c 1000 -k http://127.0.0.1:8080(自己设置端口)/ 当然也可以不使用k参数。
 ```
 
 ## 主要模块介绍
