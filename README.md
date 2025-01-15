@@ -13,14 +13,19 @@ Ubuntu 24.04 LTS
 ## 编译指令
 
 首先进入文件所在目录
+```shell
+cd coroutine-lib && cd fiber_lib && cd 6hook 
+```
 
-`g++ *.cpp -std=c++17 -o test`
+在6hook文件下编译链接可执行文件
+```shell
+g++ *.cpp -std=c++17 -o main -ldl -lpthread
+```
 
-## 运行测试用例
-首先进入文件所在目录
-
-`./test`
-
+执行可执行文件
+```shell
+./main
+```
 
 ## 主要模块介绍
 
@@ -65,48 +70,3 @@ Ubuntu 24.04 LTS
 
 ### HOOK技术
 对系统底层函数进行封装，增强功能且保持原有调用接口的兼容性，使函数在保持原有调用方式的同时，增加新的功能实现。
-
-## 性能测试补充
-### 运行测试:
-```shell
-g++ *.cpp -std=c++17 -o main -ldl -lpthread
-````
-
-### epoll测试:
-与libevnt操作同理,然后运行可执行程序:
-```shell
-./epoll
-```
-
-### libevent测试：
-先删除libevent/build文件
-```shell
-rm -rf build
-```
-然后，生成build文件，并允许cmake构建项目框架
-```shell
-mkdir build && cd build && cmake .. && make
-```
-
-### 测试工具的使用：
-在ubuntu安装
-```shell
-sudo apt update
-sudo apt install apache2-utils
-```
-
-Centos安装
-```shell
-sudo yum install httpd-tools
-```
-判断是否安装成功
-```shell
-ab -V
-```
-
-### 通过测试工具运行项目:
-**注意别忘记启动main可执行程序**
-测试工具apache的命令使用的是:
-```shell
-ab -n 100000 -c 1000 -k http://127.0.0.1:8080(自己设置端口)/ 当然也可以不使用k参数。
-```
