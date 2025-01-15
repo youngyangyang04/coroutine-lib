@@ -9,17 +9,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBEVENT REQUIRED libevent)
 
-# 包含 libevent 和 libco 的头文件路径
+# 包含 libevent 头文件路径
 include_directories(${LIBEVENT_INCLUDE_DIRS})
-include_directories(/home/lhs/apache_corlib/libco/include) # 替换为 libco 的头文件路径
 
 # 添加可执行文件
 add_executable(echo_server ../main.cpp)
 
-# 链接 libevent, libco, pthread 和 dl 库
-target_link_libraries(echo_server 
-    ${LIBEVENT_LIBRARIES} 
-    /home/lhs/apache_corlib/libco/lib/libcolib.a  # 替换为 libco 静态库路径
-    pthread 
-    dl
-)
+# 链接 libevent 库
+target_link_libraries(echo_server ${LIBEVENT_LIBRARIES})
