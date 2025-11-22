@@ -180,10 +180,11 @@ void Scheduler::stop()
     {
         assert(GetThis() == this);
     } 
-    else 
-    {
-        assert(GetThis() != this);
-    }
+	//冗余判断
+    // else 
+    // {
+    //     assert(GetThis() != this);
+    // }
 	
 	for (size_t i = 0; i < m_threadCount; i++) 
 	{
